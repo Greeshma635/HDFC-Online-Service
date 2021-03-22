@@ -1,0 +1,109 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Web;
+using System.Data.SqlClient;
+using System.Data;
+
+namespace WebApplication3
+{
+    public class BusinessLogic
+    {
+        SqlConnection con;
+        SqlDataAdapter da;
+        SqlCommandBuilder cmb;
+        DataRow row;
+        DataSet ds;
+
+        public BusinessLogic()
+        {
+            con = new SqlConnection(@"Data Source=OJAS-DD422;Initial Catalog=OjasDB;Persist Security Info=True;User ID=sa;Password=Ojas@15251525");
+            da = new SqlDataAdapter("Select * from Tbl_Account", con);
+            cmb = new SqlCommandBuilder(da);
+            ds = new DataSet();
+            da.Fill(ds, "Tbl_Account");
+            da.Update(ds.Tables["Tbl_Account"]);
+            ds.Tables["Tbl_Account"].Constraints.Add("UserId_Pk", ds.Tables["Tbl_Account"].Columns["UserId"], true);
+
+        }
+        public bool CreateAccount(Account account)
+        {
+            row = ds.Tables["Tbl_Account"].NewRow();
+            row["ACNo"] = account.ACNo;
+            row["ACName"] = account.ACName;
+            row["UserId"] = account.UserId;
+            row["Password"] = account.Password;
+            row["Balance"] = account.Balance;
+            ds.Tables["Tbl_Account"].Rows.Add(row);
+            return da.Update(ds.Tables["Tbl_Account"]) == 1;
+        }
+
+        public bool UserLogin(Account account)
+        {
+            try
+            {
+                row = ds.Tables["Tbl_Account"].Rows.Find(account.UserId);
+                return row["Password"].ToString() == account.Password;
+                        }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
+        public bool ChangePassword(Account account)
+        {
+                row = ds.Tables["Tbl_Account"].Rows.Find(account.UserId);
+            row["Password"]= account.Password;
+                return da.Update(ds.Tables["Tbl_Account"]) == 1;
+        }
+        public bool TransferFunds(Trans trans)
+        {
+                Account fraccount = GetAccountByACNo(new Account() { ACNo = trans.FromAccount });
+            if (fraccount.Balance >= trans.Amount)
+            {
+                fraccount.Balance = fraccount.Balance - trans.Amount;
+                Account toaccount = GetAccountByACNo(new Account() { ACNo = trans.ToAccount });
+                toaccount.Balance = toaccount.Balance + trans.Amount;
+
+                DataRow row1 = ds.Tables["Tbl_Account"].Rows.Find(fraccount.UserId);
+                row1["Balance"] = fraccount.Balance;
+
+                DataRow row2 = ds.Tables["Tbl_Account"].Rows.Find(toaccount.UserId);
+                row2["Balance"] = toaccount.Balance;
+                return da.Update(ds.Tables["Tbl_Account"]) == 2;
+
+            }
+            else
+            {
+                return false;
+            }
+        }
+        public Account GetAccountByACNo(Account account)
+        {
+            SqlCommand cmd = new SqlCommand();
+            cmd.Connection = con;
+            con.Close();
+            cmd.CommandText = string.Format($"Select * from Tbl_Account where AcNo={account.ACNo}");
+            con.Open();
+            SqlDataReader dr = cmd.ExecuteReader();
+            while (dr.Read())
+            {
+                account.ACName = dr[1].ToString();
+                account.UserId = dr[2].ToString();
+                account.Balance = Convert.ToInt32(dr[4]);
+            }
+            con.Close();
+            return account;
+        }
+        public Account GetAccountByUserId(Account account)
+        {
+            row = ds.Tables["Tbl_Account"].Rows.Find(account.UserId);
+            account.ACNo = row["ACNo"].ToString();
+            account.ACName = row["ACName"].ToString();
+            account.Balance = Convert.ToInt32(row["Balance"].ToString());
+            return account;
+
+        }
+
+    }
+}
